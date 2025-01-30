@@ -1,1 +1,4 @@
-func(int x) { };
+func a(int x)
+{
+    exit(1);
+}

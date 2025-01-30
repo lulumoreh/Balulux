@@ -14,6 +14,7 @@ typedef enum {
     SEPARATOR,
     OPERATOR,
     EQUAL,
+    KEYWORD,
     ACCEPT,
     ERROR
 } State;
@@ -36,7 +37,7 @@ typedef struct {
 } Token;
 
 // Global Variables
-extern State transition_matrix[8][256];
+extern State transition_matrix[9][256];
 extern int line_number;
 
 // Function Prototypes
@@ -44,5 +45,6 @@ void initialize_transition_matrix();
 Token *lexer(FILE *file);
 void print_token(Token token);
 void free_tokens(Token *tokens);
+void add_keyword_transitions(char* keyword);
 
 #endif

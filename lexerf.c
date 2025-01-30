@@ -1,10 +1,19 @@
 #include "lexerf.h"
-
+#
 // Global Variables
-State transition_matrix[8][256];
+State transition_matrix[9][256];
 int line_number = 1;
 
 // Functions
+void add_keyword_transitions(char* keyword) 
+{
+    transition_matrix[START][keyword[0]] = IDENTIFIER; // first char
+    for (int i = 1; i <= strlen(keyword) - 2; i++) 
+    {
+        transition_matrix[IDENTIFIER][keyword[i]] = IDENTIFIER; // chars between
+    }
+    transition_matrix[IDENTIFIER][keyword[strlen(keyword) - 1]] = KEYWORD; // last char- indicate keyword
+}
 void initialize_transition_matrix() 
 {
     for (int i = 0; i < 8; i++) 
@@ -72,6 +81,36 @@ void initialize_transition_matrix()
     transition_matrix[START]['='] = EQUAL;
     transition_matrix[EQUAL][' '] = ACCEPT;
 
+    //Define transition for keywords
+    // transition_matrix[START]['i'] = IDENTIFIER;
+    // transition_matrix[IDENTIFIER]['n'] = IDENTIFIER;
+    // transition_matrix[IDENTIFIER]['t'] = KEYWORD;
+
+    transition_matrix[KEYWORD][' '] = ACCEPT;
+    transition_matrix[KEYWORD]['\n'] = ACCEPT;
+    transition_matrix[KEYWORD]['\t'] = ACCEPT;
+    
+    transition_matrix[KEYWORD][';'] = ACCEPT;
+    transition_matrix[KEYWORD][','] = ACCEPT;
+    transition_matrix[KEYWORD]['('] = ACCEPT;
+    transition_matrix[KEYWORD][')'] = ACCEPT;
+    transition_matrix[KEYWORD]['{'] = ACCEPT;
+    transition_matrix[KEYWORD]['}'] = ACCEPT;
+
+    transition_matrix[KEYWORD]['='] = ACCEPT;
+    transition_matrix[KEYWORD]['+'] = ACCEPT;
+    transition_matrix[KEYWORD]['-'] = ACCEPT;
+    transition_matrix[KEYWORD]['*'] = ACCEPT;
+    transition_matrix[KEYWORD]['/'] = ACCEPT;
+    transition_matrix[KEYWORD]['%'] = ACCEPT;
+
+    add_keyword_transitions("int");
+    add_keyword_transitions("exit");
+    add_keyword_transitions("func");
+    add_keyword_transitions("luloop");
+    add_keyword_transitions("notequal");
+    add_keyword_transitions("equal");
+
 }
 
 Token *lexer(FILE *file) 
@@ -100,61 +139,57 @@ Token *lexer(FILE *file)
     int buffer_index = 0;
     Token *tokens = malloc(sizeof(Token) * 100);
     int token_index = 0;
-    TokenType types_arr[8] = { END_OF_TOKENS, NUMBER_TOKEN, IDENTIFIER_TOKEN, 
-                                SEPARATOR_TOKEN, OPERATOR_TOKEN, 
-                                EQUAL_TOKEN, END_OF_TOKENS, END_OF_TOKENS };
-    while (input[current_index] != '\0') 
+    TokenType types_arr[9] = { END_OF_TOKENS, NUMBER_TOKEN, IDENTIFIER_TOKEN, 
+                                SEPARATOR_TOKEN, OPERATOR_TOKEN, EQUAL_TOKEN, 
+                                KEYWORD_TOKEN, END_OF_TOKENS, END_OF_TOKENS };
+
+    while (1) 
     {
         char current_char = input[current_index];
         State next_state = transition_matrix[current_state][(unsigned char)current_char];
 
-        if (next_state == ACCEPT) //add token
+        if (next_state == ACCEPT || (current_char == '\0' && buffer_index > 0)) 
         {
             buffer[buffer_index] = '\0';
             Token token;
             token.line_num = line_number;
             token.value = strdup(buffer);
             token.type = types_arr[current_state];
-            if (token.type == IDENTIFIER_TOKEN && 
-                (strcmp(buffer, "int") == 0 || strcmp(buffer, "exit") == 0 || 
-                strcmp(buffer, "luloop") == 0 || strcmp(buffer, "notequal") == 0 || 
-                strcmp(buffer, "equal") == 0))
-            {
-                token.type = KEYWORD_TOKEN;
-            }
             
-
             tokens[token_index] = token;
             token_index++;
             buffer_index = 0;
             current_state = START;
+            
+            if (current_char == '\0') break;
             continue;
         }
-        else if (next_state == ERROR) //unrecognized token type
+        else if (next_state == ERROR) 
         {
             buffer_index = 0;
             current_state = START;
         }
-        else //didn't find a token
+        else 
         {
-            buffer[buffer_index++] = current_char;
+            buffer[buffer_index] = current_char;
+            buffer_index++;
             current_state = next_state;
         }
+
         if (current_char == '\n') 
         {
             line_number++;
         }
+        
+        if (current_char == '\0') break;
         current_index++;
     }
 
-
-    //Add END_OF_TOKENS marker
     tokens[token_index].type = END_OF_TOKENS;
     tokens[token_index].value = NULL;
     tokens[token_index].line_num = line_number;
 
     free(input);
-
     return tokens;
 }
 
