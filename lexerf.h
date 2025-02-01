@@ -16,7 +16,15 @@ typedef enum {
     EQUAL,
     KEYWORD,
     ACCEPT,
-    ERROR
+    ERROR,
+    INT_I, //keywords states
+    INT_N,
+    INT_T,
+    LULOG_L,
+    LULOG_U,
+    LULOG_L2,   
+    LULOG_O,    
+    LULOG_G
 } State;
 
 typedef enum {
@@ -37,7 +45,10 @@ typedef struct {
 } Token;
 
 // Global Variables
-extern State transition_matrix[9][256];
+#define UNTIL_BREAK 1
+#define STATES_NUM 17
+#define ASCI_CHARS 256
+extern State transition_matrix[STATES_NUM][ASCI_CHARS];
 extern int line_number;
 
 // Function Prototypes

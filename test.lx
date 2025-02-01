@@ -1,4 +1,4 @@
-func a(int x)
+a(int x)
 {
-    exit(1);
+    lulog(x);
 }

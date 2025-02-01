@@ -1,25 +1,15 @@
 #include "lexerf.h"
-#
 // Global Variables
-State transition_matrix[9][256];
+State transition_matrix[STATES_NUM][ASCI_CHARS];
 int line_number = 1;
 
 // Functions
-void add_keyword_transitions(char* keyword) 
-{
-    transition_matrix[START][keyword[0]] = IDENTIFIER; // first char
-    for (int i = 1; i <= strlen(keyword) - 2; i++) 
-    {
-        transition_matrix[IDENTIFIER][keyword[i]] = IDENTIFIER; // chars between
-    }
-    transition_matrix[IDENTIFIER][keyword[strlen(keyword) - 1]] = KEYWORD; // last char- indicate keyword
-}
 void initialize_transition_matrix() 
 {
-    for (int i = 0; i < 8; i++) 
+    for (int i = 0; i < STATES_NUM; i++) 
     {
-        for (int j = 0; j < 256; j++) 
-        {
+        for (int j = 0; j < ASCI_CHARS; j++) 
+        { 
             transition_matrix[i][j] = ERROR;
         }
     }
@@ -39,6 +29,7 @@ void initialize_transition_matrix()
     {
         transition_matrix[START][i] = IDENTIFIER;
         transition_matrix[IDENTIFIER][i] = IDENTIFIER;
+        transition_matrix[SEPARATOR][i] = ACCEPT; 
     }
     for (int i = 'A'; i <= 'Z'; i++) 
     {
@@ -82,9 +73,35 @@ void initialize_transition_matrix()
     transition_matrix[EQUAL][' '] = ACCEPT;
 
     //Define transition for keywords
-    // transition_matrix[START]['i'] = IDENTIFIER;
-    // transition_matrix[IDENTIFIER]['n'] = IDENTIFIER;
-    // transition_matrix[IDENTIFIER]['t'] = KEYWORD;
+    //int
+    transition_matrix[START]['i'] = INT_I;
+    transition_matrix[INT_I]['n'] = INT_N;
+    transition_matrix[INT_N]['t'] = INT_T;
+    transition_matrix[INT_T][' '] = ACCEPT;
+    transition_matrix[INT_T]['\n'] = ACCEPT;
+    transition_matrix[INT_T]['\t'] = ACCEPT;
+    transition_matrix[INT_T]['('] = ACCEPT;
+    transition_matrix[INT_T][')'] = ACCEPT;
+    transition_matrix[INT_T]['{'] = ACCEPT;
+    transition_matrix[INT_T]['}'] = ACCEPT;
+    transition_matrix[INT_T][';'] = ACCEPT;
+    transition_matrix[INT_T][','] = ACCEPT;
+    //lulog
+    transition_matrix[START]['l'] = LULOG_L;
+    transition_matrix[LULOG_L]['u'] = LULOG_U;
+    transition_matrix[LULOG_U]['l'] = LULOG_L2;
+    transition_matrix[LULOG_L2]['o'] = LULOG_O;
+    transition_matrix[LULOG_O]['g'] = LULOG_G;
+    transition_matrix[LULOG_G][' '] = ACCEPT;
+    transition_matrix[LULOG_G]['\n'] = ACCEPT;
+    transition_matrix[LULOG_G]['\t'] = ACCEPT;
+    transition_matrix[LULOG_G]['('] = ACCEPT;
+    transition_matrix[LULOG_G][')'] = ACCEPT;
+    transition_matrix[LULOG_G]['{'] = ACCEPT;
+    transition_matrix[LULOG_G]['}'] = ACCEPT;
+    transition_matrix[LULOG_G][';'] = ACCEPT;
+    transition_matrix[LULOG_G][','] = ACCEPT;
+
 
     transition_matrix[KEYWORD][' '] = ACCEPT;
     transition_matrix[KEYWORD]['\n'] = ACCEPT;
@@ -96,6 +113,14 @@ void initialize_transition_matrix()
     transition_matrix[KEYWORD][')'] = ACCEPT;
     transition_matrix[KEYWORD]['{'] = ACCEPT;
     transition_matrix[KEYWORD]['}'] = ACCEPT;
+    transition_matrix[START]['('] = SEPARATOR;
+    transition_matrix[START][')'] = SEPARATOR;
+    transition_matrix[START]['{'] = SEPARATOR;
+    transition_matrix[START]['}'] = SEPARATOR;
+
+    transition_matrix[IDENTIFIER]['('] = ACCEPT; // Allow function declaration
+    transition_matrix[KEYWORD]['('] = ACCEPT;
+
 
     transition_matrix[KEYWORD]['='] = ACCEPT;
     transition_matrix[KEYWORD]['+'] = ACCEPT;
@@ -104,12 +129,14 @@ void initialize_transition_matrix()
     transition_matrix[KEYWORD]['/'] = ACCEPT;
     transition_matrix[KEYWORD]['%'] = ACCEPT;
 
-    add_keyword_transitions("int");
-    add_keyword_transitions("exit");
-    add_keyword_transitions("func");
-    add_keyword_transitions("luloop");
-    add_keyword_transitions("notequal");
-    add_keyword_transitions("equal");
+    // add_keyword_transitions("int");
+    // add_keyword_transitions("string");
+    // add_keyword_transitions("exit");
+    // add_keyword_transitions("no_return");
+    // add_keyword_transitions("luloop");
+    // add_keyword_transitions("lulog");
+    // add_keyword_transitions("notequal");
+    // add_keyword_transitions("equal");
 
 }
 
@@ -129,9 +156,9 @@ Token *lexer(FILE *file)
         return NULL;
     }
 
-    fread(input, 1, length, file);
+    size_t bytes_read = fread(input, 1, length, file);
     fclose(file);
-    input[length] = '\0';
+    input[bytes_read] = '\0';
 
     State current_state = START;
     int current_index = 0;
@@ -139,11 +166,27 @@ Token *lexer(FILE *file)
     int buffer_index = 0;
     Token *tokens = malloc(sizeof(Token) * 100);
     int token_index = 0;
-    TokenType types_arr[9] = { END_OF_TOKENS, NUMBER_TOKEN, IDENTIFIER_TOKEN, 
-                                SEPARATOR_TOKEN, OPERATOR_TOKEN, EQUAL_TOKEN, 
-                                KEYWORD_TOKEN, END_OF_TOKENS, END_OF_TOKENS };
+    TokenType types_arr[] = {
+    END_OF_TOKENS,    // START
+    NUMBER_TOKEN,     // NUMBER
+    IDENTIFIER_TOKEN, // IDENTIFIER
+    SEPARATOR_TOKEN,  // SEPARATOR
+    OPERATOR_TOKEN,   // OPERATOR
+    EQUAL_TOKEN,      // EQUAL
+    KEYWORD_TOKEN,    // KEYWORD
+    END_OF_TOKENS,    // ACCEPT
+    END_OF_TOKENS,    // ERROR
+    KEYWORD_TOKEN,    // INT_I
+    KEYWORD_TOKEN,    // INT_N
+    KEYWORD_TOKEN,    // INT_T
+    KEYWORD_TOKEN,    // LULOG_L
+    KEYWORD_TOKEN,    // LULOG_U
+    KEYWORD_TOKEN,    // LULOG_L2
+    KEYWORD_TOKEN,    // LULOG_O
+    KEYWORD_TOKEN,    // LULOG_G
+};
 
-    while (1) 
+    while(UNTIL_BREAK) 
     {
         char current_char = input[current_index];
         State next_state = transition_matrix[current_state][(unsigned char)current_char];
@@ -164,12 +207,12 @@ Token *lexer(FILE *file)
             if (current_char == '\0') break;
             continue;
         }
-        else if (next_state == ERROR) 
+        else if (next_state == ERROR) //found an error state
         {
             buffer_index = 0;
             current_state = START;
         }
-        else 
+        else // continue searching for accept
         {
             buffer[buffer_index] = current_char;
             buffer_index++;
