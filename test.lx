@@ -1,4 +1,1 @@
-a(int x)
-{
-    lulog(x);
-}
+lulog("hello world");

@@ -86,6 +86,20 @@ void initialize_transition_matrix()
     transition_matrix[INT_T]['}'] = ACCEPT;
     transition_matrix[INT_T][';'] = ACCEPT;
     transition_matrix[INT_T][','] = ACCEPT;
+    //str
+    transition_matrix[START]['s'] = STR_S;
+    transition_matrix[STR_S]['t'] = STR_T;
+    transition_matrix[STR_T]['r'] = STR_R;
+    transition_matrix[STR_R][' '] = ACCEPT;
+    transition_matrix[STR_R]['\n'] = ACCEPT;
+    transition_matrix[STR_R]['\t'] = ACCEPT;
+    transition_matrix[STR_R]['('] = ACCEPT;
+    transition_matrix[STR_R][')'] = ACCEPT;
+    transition_matrix[STR_R]['{'] = ACCEPT;
+    transition_matrix[STR_R]['}'] = ACCEPT;
+    transition_matrix[STR_R][';'] = ACCEPT;
+    transition_matrix[STR_R][','] = ACCEPT;
+
     //lulog
     transition_matrix[START]['l'] = LULOG_L;
     transition_matrix[LULOG_L]['u'] = LULOG_U;
@@ -103,40 +117,20 @@ void initialize_transition_matrix()
     transition_matrix[LULOG_G][','] = ACCEPT;
 
 
-    transition_matrix[KEYWORD][' '] = ACCEPT;
-    transition_matrix[KEYWORD]['\n'] = ACCEPT;
-    transition_matrix[KEYWORD]['\t'] = ACCEPT;
+    transition_matrix[START]['"'] = STRING_LITERAL;  // התחלת מחרוזת
     
-    transition_matrix[KEYWORD][';'] = ACCEPT;
-    transition_matrix[KEYWORD][','] = ACCEPT;
-    transition_matrix[KEYWORD]['('] = ACCEPT;
-    transition_matrix[KEYWORD][')'] = ACCEPT;
-    transition_matrix[KEYWORD]['{'] = ACCEPT;
-    transition_matrix[KEYWORD]['}'] = ACCEPT;
-    transition_matrix[START]['('] = SEPARATOR;
-    transition_matrix[START][')'] = SEPARATOR;
-    transition_matrix[START]['{'] = SEPARATOR;
-    transition_matrix[START]['}'] = SEPARATOR;
-
-    transition_matrix[IDENTIFIER]['('] = ACCEPT; // Allow function declaration
-    transition_matrix[KEYWORD]['('] = ACCEPT;
-
-
-    transition_matrix[KEYWORD]['='] = ACCEPT;
-    transition_matrix[KEYWORD]['+'] = ACCEPT;
-    transition_matrix[KEYWORD]['-'] = ACCEPT;
-    transition_matrix[KEYWORD]['*'] = ACCEPT;
-    transition_matrix[KEYWORD]['/'] = ACCEPT;
-    transition_matrix[KEYWORD]['%'] = ACCEPT;
-
-    // add_keyword_transitions("int");
-    // add_keyword_transitions("string");
-    // add_keyword_transitions("exit");
-    // add_keyword_transitions("no_return");
-    // add_keyword_transitions("luloop");
-    // add_keyword_transitions("lulog");
-    // add_keyword_transitions("notequal");
-    // add_keyword_transitions("equal");
+    for (int i = 32; i < 127; i++) {
+        if (i != '"') 
+        {
+            transition_matrix[STRING_LITERAL][i] = STRING_LITERAL;
+        }
+    }
+    transition_matrix[STRING_LITERAL]['"'] = STRING_END;
+    transition_matrix[STRING_END][' '] = ACCEPT;
+    transition_matrix[STRING_END]['\n'] = ACCEPT;
+    transition_matrix[STRING_END][';'] = ACCEPT;
+    transition_matrix[STRING_END][','] = ACCEPT;
+    transition_matrix[STRING_END][','] = ACCEPT;
 
 }
 
@@ -167,23 +161,27 @@ Token *lexer(FILE *file)
     Token *tokens = malloc(sizeof(Token) * 100);
     int token_index = 0;
     TokenType types_arr[] = {
-    END_OF_TOKENS,    // START
-    NUMBER_TOKEN,     // NUMBER
-    IDENTIFIER_TOKEN, // IDENTIFIER
-    SEPARATOR_TOKEN,  // SEPARATOR
-    OPERATOR_TOKEN,   // OPERATOR
-    EQUAL_TOKEN,      // EQUAL
-    KEYWORD_TOKEN,    // KEYWORD
-    END_OF_TOKENS,    // ACCEPT
-    END_OF_TOKENS,    // ERROR
-    KEYWORD_TOKEN,    // INT_I
-    KEYWORD_TOKEN,    // INT_N
-    KEYWORD_TOKEN,    // INT_T
-    KEYWORD_TOKEN,    // LULOG_L
-    KEYWORD_TOKEN,    // LULOG_U
-    KEYWORD_TOKEN,    // LULOG_L2
-    KEYWORD_TOKEN,    // LULOG_O
-    KEYWORD_TOKEN,    // LULOG_G
+    END_OF_TOKENS,        // START
+    NUMBER_TOKEN,         // NUMBER
+    IDENTIFIER_TOKEN,     // IDENTIFIER
+    SEPARATOR_TOKEN,      // SEPARATOR
+    OPERATOR_TOKEN,       // OPERATOR
+    EQUAL_TOKEN,          // EQUAL
+    END_OF_TOKENS,        // ACCEPT
+    END_OF_TOKENS,        // ERROR
+    TYPE_TOKEN,           // INT_I
+    TYPE_TOKEN,           // INT_N
+    TYPE_TOKEN,           // INT_T
+    TYPE_TOKEN,           // STR_S
+    TYPE_TOKEN,           // STR_T
+    TYPE_TOKEN,           // STR_R
+    STRING_LITERAL_TOKEN, // STRING_LITERAL
+    STRING_LITERAL_TOKEN, // STRING_END
+    KEYWORD_TOKEN,        // LULOG_L
+    KEYWORD_TOKEN,        // LULOG_U
+    KEYWORD_TOKEN,        // LULOG_L2
+    KEYWORD_TOKEN,        // LULOG_O
+    KEYWORD_TOKEN         // LULOG_G
 };
 
     while(UNTIL_BREAK) 
@@ -238,12 +236,11 @@ Token *lexer(FILE *file)
 
 void print_token(Token token) 
 {
-    char* token_types[] = {"NUMBER", "KEYWORD", "IDENTIFIER", 
+    char* token_types[] = {"NUMBER", "KEYWORD", "TYPE", "STRING_LITERAL", "IDENTIFIER", 
                             "SEPARATOR", "OPERATOR", "EQUAL", "END_OF_TOKENS"};
-    printf("TOKEN VALUE: '%s', LINE: %d, TYPE: %s\n"
-            ,token.value, token.line_num, token_types[token.type]);
+    printf("TOKEN VALUE: '%s', LINE: %d, TYPE: %s\n",
+            token.value, token.line_num, token_types[token.type]);
 }
-
 void free_tokens(Token *tokens) 
 {
     for (int i = 0; tokens[i].type != END_OF_TOKENS; i++) 
