@@ -30,11 +30,17 @@ typedef enum {
     NT_IDENTIFIER,
     NT_NUMBER,
     NT_STRING_LITERAL,
-    NT_SEPARATOR,      
+    NT_SEPARATOR,
     NT_COMMENT,
     NT_ARRAY_INDEX,
     NT_ELEMENT_LIST,
-    NT_ARRAY_INIT
+    NT_ARRAY_INIT,
+    NT_KEYWORD, // Added
+    NT_EQUAL, // Added
+    NT_LOGICAL_OP, // Added
+    NT_ARRAY, // Added
+    NT_END_OF_TOKENS, // Added
+    NT_UNKNOWN // Added
 } NonTerminal;
 
 // Actions for the parser
@@ -154,26 +160,7 @@ void free_lexeme_actions(Parser* parser);
 // Add to parser.h
 typedef int (*pFun)(Parser*, Action, Token, int*, StackItem*);
 typedef void (*TokenHandler)(Parser*, ASTNode*, int*, int*);
-// Function prototypes for action handlers
-int action_shift(Parser*, Action, Token, int*, StackItem*);
-int action_reduce(Parser*, Action, Token, int*, StackItem*);
-int action_accept(Parser*, Action, Token, int*, StackItem*);
-int action_error(Parser*, Action, Token, int*, StackItem*);
-// Function prototypes for statement handlers
-void handle_type_stmt(Parser*, ASTNode*, int*, int*);
-void handle_if_stmt(Parser*, ASTNode*, int*, int*);
-void handle_loop_stmt(Parser*, ASTNode*, int*, int*);
-void handle_return_stmt(Parser*, ASTNode*, int*, int*);
-void handle_identifier_stmt(Parser*, ASTNode*, int*, int*);
-void handle_default_stmt(Parser*, ASTNode*, int*, int*);
-void process_statement(Parser*, ASTNode*, int*, int*);
-// Function prototypes for parsing helpers
-int parse_function(Parser*, int);
-int parse_parameters(Parser*, int, ASTNode*);
-int parse_function_body(Parser*, int, ASTNode*);
-int parse_statement(Parser*, int, ASTNode*, int);
-void print_ast(ASTNode*, int);
-void free_ast(ASTNode* node);
-void build_ast_from_tokens(Parser* parser);
+
+void print_ast(ASTNode* node, int indent_level);
 
 #endif // PARSER_H

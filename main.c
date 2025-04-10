@@ -8,7 +8,7 @@ int main() {
         printf("File not found!\n");
         return 1;
     }
-    
+
     // Step 2: Run the lexical analyzer to get tokens
     int flag = 0;
     Token* tokens = lexer(file, &flag);
@@ -19,12 +19,13 @@ int main() {
 
     // Step 3: Create and initialize the parser
     Parser *parser = create_parser(tokens);
-    
-    // Step 4: Parse the input and generate the AST
-    // Use the enhanced token-based AST builder instead of regular parsing
-    build_ast_from_tokens(parser);
 
-    if (parser->ast_root) {
+    // Step 4: Parse the input and generate the AST
+    parse(parser);
+
+    if (parser->has_error) {
+        printf("Parsing error: %s\n", parser->error_message);
+    } else if (parser->ast_root) {
         printf("AST created successfully.\n");
         printf("Program node has %d children\n", parser->ast_root->num_children);
         print_ast(parser->ast_root, 0);
@@ -35,7 +36,7 @@ int main() {
     // Step 6: Clean up the parser and tokens
     free_parser(parser);
     free_tokens(tokens);  // Free the tokens array
-    
+
     return 0;
 }
 

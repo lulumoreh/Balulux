@@ -1101,246 +1101,6 @@ void add_child_to_ast_node(ASTNode* parent, ASTNode* child) {
 }
 
 
-// Define the token handler functions
-void handle_type_token(Parser* parser, ASTNode* body, int* j, int* stmt_start) {
-    // Variable declaration
-    ASTNode* var_decl = create_ast_node(NT_VARIABLE_DECLARATION, "VarDecl");
-    ASTNode* type_node = create_ast_node(NT_TYPE, parser->tokens[*stmt_start].value);
-    ASTNode* var_name = create_ast_node(NT_IDENTIFIER, parser->tokens[*stmt_start+1].value);
-    
-    add_child_to_ast_node(var_decl, type_node);
-    add_child_to_ast_node(var_decl, var_name);
-    
-    // Check if it has an initializer
-    if (*stmt_start + 2 < *j && parser->tokens[*stmt_start+2].type == EQUAL_TOKEN) {
-        ASTNode* init_expr = create_ast_node(NT_EXPRESSION, "Initializer");
-        add_child_to_ast_node(var_decl, init_expr);
-    }
-    
-    add_child_to_ast_node(body, var_decl);
-}
-void handle_identifier_token(Parser* parser, ASTNode* body, int* j, int* stmt_start) {
-    // For identifiers, check if assignment or function call
-    if (*stmt_start + 1 < *j && parser->tokens[*stmt_start+1].type == EQUAL_TOKEN) {
-        // Assignment
-        ASTNode* assign = create_ast_node(NT_ASSIGNMENT, "Assignment");
-        ASTNode* var_name = create_ast_node(NT_IDENTIFIER, parser->tokens[*stmt_start].value);
-        ASTNode* value = create_ast_node(NT_EXPRESSION, "Value");
-        
-        add_child_to_ast_node(assign, var_name);
-        add_child_to_ast_node(assign, value);
-        add_child_to_ast_node(body, assign);
-    } else if (*stmt_start + 1 < *j && parser->tokens[*stmt_start+1].type == SEPARATOR_TOKEN && 
-              strcmp(parser->tokens[*stmt_start+1].value, "(") == 0) {
-        // Function call
-        ASTNode* func_call = create_ast_node(NT_FUNCTION_CALL, "FunctionCall");
-        ASTNode* func_name = create_ast_node(NT_IDENTIFIER, parser->tokens[*stmt_start].value);
-        ASTNode* args = create_ast_node(NT_ARGUMENTS, "Arguments");
-        
-        add_child_to_ast_node(func_call, func_name);
-        add_child_to_ast_node(func_call, args);
-        add_child_to_ast_node(body, func_call);
-    } else {
-        // Generic identifier statement
-        char debug_value[100];
-        snprintf(debug_value, 100, "Statement [%s]", 
-                parser->tokens[*stmt_start].value ? 
-                parser->tokens[*stmt_start].value : "unknown");
-        ASTNode* stmt = create_ast_node(NT_STATEMENT, debug_value);
-        add_child_to_ast_node(body, stmt);
-    }
-}
-void handle_keyword_token(Parser* parser, ASTNode* body, int* j, int* stmt_start) {
-    char* keyword = parser->tokens[*stmt_start].value;
-    
-    if (strcmp(keyword, "if") == 0) {
-        // If statement
-        ASTNode* if_stmt = create_ast_node(NT_IF_STATEMENT, "If");
-        ASTNode* condition = create_ast_node(NT_EXPRESSION, "Condition");
-        add_child_to_ast_node(if_stmt, condition);
-        add_child_to_ast_node(body, if_stmt);
-    } else if (strcmp(keyword, "luloop") == 0) {
-        // Loop statement
-        ASTNode* loop_stmt = create_ast_node(NT_LOOP_STATEMENT, "Loop");
-        ASTNode* condition = create_ast_node(NT_EXPRESSION, "Condition");
-        add_child_to_ast_node(loop_stmt, condition);
-        add_child_to_ast_node(body, loop_stmt);
-    } else if (strcmp(keyword, "return") == 0) {
-        // Return statement
-        ASTNode* return_stmt = create_ast_node(NT_RETURN_STATEMENT, "Return");
-        if (*stmt_start + 1 < *j) {
-            ASTNode* return_val = create_ast_node(NT_EXPRESSION, "ReturnValue");
-            add_child_to_ast_node(return_stmt, return_val);
-        }
-        add_child_to_ast_node(body, return_stmt);
-    } else {
-        // Unknown keyword
-        char debug_value[100];
-        snprintf(debug_value, 100, "Statement [%s]", keyword ? keyword : "unknown");
-        ASTNode* stmt = create_ast_node(NT_STATEMENT, debug_value);
-        add_child_to_ast_node(body, stmt);
-    }
-}
-void handle_default_token(Parser* parser, ASTNode* body, int* j, int* stmt_start) {
-    // Generic statement with debug info
-    if (parser->tokens[*stmt_start].type == SEPARATOR_TOKEN && 
-        strcmp(parser->tokens[*stmt_start].value, ";") == 0) {
-        // Skip empty statements
-        return;
-    }
-    
-    char debug_value[100] = "Statement";
-    if (parser->tokens[*stmt_start].type != END_OF_TOKENS) {
-        snprintf(debug_value, 100, "Statement [%s]", 
-                parser->tokens[*stmt_start].value ? 
-                parser->tokens[*stmt_start].value : "unknown");
-    }
-    ASTNode* stmt = create_ast_node(NT_STATEMENT, debug_value);
-    add_child_to_ast_node(body, stmt);
-}
-// Improved build_ast_from_tokens function using a simpler approach
-void build_ast_from_tokens(Parser* parser) {
-    // Create a program node
-    parser->ast_root = create_ast_node(NT_PROGRAM, "Program");
-    if (!parser->ast_root) {
-        parser_error(parser, "Failed to create AST root node");
-        return;
-    }
-    
-    // Process the tokens to find functions
-    int i = 0;
-    while (parser->tokens[i].type != END_OF_TOKENS) {
-        // Look for function definition pattern: TYPE IDENTIFIER OPEN_PAREN
-        if (parser->tokens[i].type == TYPE_TOKEN && 
-            parser->tokens[i+1].type == IDENTIFIER_TOKEN && 
-            parser->tokens[i+2].type == SEPARATOR_TOKEN && 
-            strcmp(parser->tokens[i+2].value, "(") == 0) {
-            
-            // Found a function definition
-            ASTNode* function = create_ast_node(NT_FUNCTION, parser->tokens[i+1].value);
-            printf("Found function: %s\n", parser->tokens[i+1].value);
-            
-            // Add type node
-            ASTNode* type_node = create_ast_node(NT_TYPE, parser->tokens[i].value);
-            add_child_to_ast_node(function, type_node);
-            
-            // Add parameters
-            ASTNode* params = create_ast_node(NT_PARAMETERS, "Parameters");
-            int j = i + 3; // Skip to the first parameter
-            
-            // Add parameters until we hit the closing parenthesis
-            while (parser->tokens[j].type != SEPARATOR_TOKEN || 
-                   strcmp(parser->tokens[j].value, ")") != 0) {
-                
-                // If we find a type and identifier, it's a parameter
-                if (parser->tokens[j].type == TYPE_TOKEN && 
-                    parser->tokens[j+1].type == IDENTIFIER_TOKEN) {
-                    
-                    ASTNode* param = create_ast_node(NT_PARAMETER, "Parameter");
-                    ASTNode* param_type = create_ast_node(NT_TYPE, parser->tokens[j].value);
-                    ASTNode* param_name = create_ast_node(NT_IDENTIFIER, parser->tokens[j+1].value);
-                    
-                    add_child_to_ast_node(param, param_type);
-                    add_child_to_ast_node(param, param_name);
-                    add_child_to_ast_node(params, param);
-                    
-                    j += 2; // Skip type and identifier
-                } else {
-                    j++; // Skip other tokens (commas, etc.)
-                }
-            }
-            
-            add_child_to_ast_node(function, params);
-            
-            // Skip to function body
-            while (parser->tokens[j].type != SEPARATOR_TOKEN || 
-                   strcmp(parser->tokens[j].value, "{") != 0) {
-                j++;
-            }
-            
-            // Create body node
-            ASTNode* body = create_ast_node(NT_STATEMENTS, "Statements");
-            
-            // Find closing brace
-            int brace_count = 1;
-            j++; // Skip opening brace
-            
-            // Process statements in the function body
-            while (brace_count > 0 && parser->tokens[j].type != END_OF_TOKENS) {
-                // Track braces for nesting
-                if (parser->tokens[j].type == SEPARATOR_TOKEN) {
-                    if (strcmp(parser->tokens[j].value, "{") == 0) {
-                        brace_count++;
-                    } else if (strcmp(parser->tokens[j].value, "}") == 0) {
-                        brace_count--;
-                        if (brace_count == 0) break; // End of function
-                        j++;
-                        continue;
-                    } else if (strcmp(parser->tokens[j].value, ";") == 0) {
-                        // Skip empty statements
-                        j++;
-                        continue;
-                    }
-                }
-                
-                // Process statements based on their starting token
-                if (brace_count > 0) {
-                    // Start statement tracking
-                    int stmt_start = j;
-                    
-                    // Find the end of the statement (semicolon)
-                    while (j < 1000 && parser->tokens[j].type != END_OF_TOKENS && 
-                          brace_count > 0 && 
-                          !(parser->tokens[j].type == SEPARATOR_TOKEN && 
-                           strcmp(parser->tokens[j].value, ";") == 0)) {
-                        // Track braces
-                        if (parser->tokens[j].type == SEPARATOR_TOKEN) {
-                            if (strcmp(parser->tokens[j].value, "{") == 0) {
-                                brace_count++;
-                            } else if (strcmp(parser->tokens[j].value, "}") == 0) {
-                                brace_count--;
-                                if (brace_count == 0) break;
-                            }
-                        }
-                        j++;
-                    }
-                    
-                    // Process statement based on token type
-                    TokenType stmt_type = parser->tokens[stmt_start].type;
-                    
-                    if (stmt_type == TYPE_TOKEN) {
-                        handle_type_token(parser, body, &j, &stmt_start);
-                    } else if (stmt_type == IDENTIFIER_TOKEN) {
-                        handle_identifier_token(parser, body, &j, &stmt_start);
-                    } else if (stmt_type == KEYWORD_TOKEN) {
-                        handle_keyword_token(parser, body, &j, &stmt_start);
-                    } else {
-                        handle_default_token(parser, body, &j, &stmt_start);
-                    }
-                    
-                    // Skip semicolon
-                    if (j < 1000 && parser->tokens[j].type != END_OF_TOKENS && 
-                        parser->tokens[j].type == SEPARATOR_TOKEN && 
-                        strcmp(parser->tokens[j].value, ";") == 0) {
-                        j++;
-                    }
-                } else {
-                    j++;
-                }
-            }
-            
-            add_child_to_ast_node(function, body);
-            
-            // Add the function to the program root
-            add_child_to_ast_node(parser->ast_root, function);
-            
-            // Skip to after this function
-            i = j;
-        } else {
-            i++;
-        }
-    }
-}
 // Print AST with indentation
 void print_ast(ASTNode* node, int depth) {
     if (!node) {
@@ -1396,19 +1156,52 @@ void free_ast(ASTNode* node) {
 
 
 // Handle special cases (placeholder implementation)
-void handle_special_cases(Rule rule, ASTNode* node) {
-    // For now, this is a placeholder implementation
-    // This function can be expanded in the future to handle specific rules
-}
 int action_shift(Parser* parser, Action action, Token current_token, int* token_index, StackItem* top_item) {
     StackItem new_item = {action.value, current_token, true, 0, NULL};
-    
+
     // Create AST node based on token type
-    if (current_token.type == IDENTIFIER_TOKEN) new_item.ast_node = create_ast_node(NT_IDENTIFIER, current_token.value);
-    else if (current_token.type == NUMBER_TOKEN) new_item.ast_node = create_ast_node(NT_NUMBER, current_token.value);
-    else if (current_token.type == TYPE_TOKEN) new_item.ast_node = create_ast_node(NT_TYPE, current_token.value);
-    else if (current_token.type == STRING_LITERAL_TOKEN) new_item.ast_node = create_ast_node(NT_STRING_LITERAL, current_token.value);
-    
+    switch (current_token.type) {
+        case IDENTIFIER_TOKEN:
+            new_item.ast_node = create_ast_node(NT_IDENTIFIER, current_token.value);
+            break;
+        case NUMBER_TOKEN:
+            new_item.ast_node = create_ast_node(NT_NUMBER, current_token.value);
+            break;
+        case TYPE_TOKEN:
+            new_item.ast_node = create_ast_node(NT_TYPE, current_token.value);
+            break;
+        case STRING_LITERAL_TOKEN:
+            new_item.ast_node = create_ast_node(NT_STRING_LITERAL, current_token.value);
+            break;
+        case SEPARATOR_TOKEN:
+            new_item.ast_node = create_ast_node(NT_SEPARATOR, current_token.value);
+            break;
+        case OPERATOR_TOKEN:
+            new_item.ast_node = create_ast_node(NT_OPERATOR, current_token.value);
+            break;
+        case KEYWORD_TOKEN:
+            new_item.ast_node = create_ast_node(NT_KEYWORD, current_token.value);
+            break;
+        case EQUAL_TOKEN:
+            new_item.ast_node = create_ast_node(NT_EQUAL, current_token.value);
+            break;
+        case LOGICAL_OP_TOKEN:
+            new_item.ast_node = create_ast_node(NT_LOGICAL_OP, current_token.value);
+            break;
+        case ARRAY_TOKEN:
+            new_item.ast_node = create_ast_node(NT_ARRAY, current_token.value);
+            break;
+        case COMMENT_TOKEN:
+            new_item.ast_node = create_ast_node(NT_COMMENT, current_token.value);
+            break;
+        case END_OF_TOKENS:
+            new_item.ast_node = create_ast_node(NT_END_OF_TOKENS, current_token.value);
+            break;
+        default:
+            new_item.ast_node = create_ast_node(NT_UNKNOWN, current_token.value); // Or handle the unknown case differently
+            break;
+    }
+
     push(&parser->stack, new_item);
     (*token_index)++;
     return 0;
@@ -1418,36 +1211,55 @@ int action_reduce(Parser* parser, Action action, Token current_token, int* token
     ASTNode* node = create_ast_node(rule.lhs, get_non_terminal_name(rule.lhs));
     ASTNode* children[10];
     int num_children = 0;
-    
-    // Pop symbols and collect children
+
+    printf("Reducing by rule %d: %s ::= ", action.value, get_non_terminal_name(rule.lhs));
     for (int i = 0; i < rule.num_symbols; i++) {
-        StackItem item = pop(&parser->stack);
-        if (item.ast_node) children[num_children++] = item.ast_node;
+        printf("%s ", rule.is_terminal[i] ? get_token_type_name(parser->tokens[parser->current_token - rule.num_symbols + i].type) : get_non_terminal_name(rule.symbols[i]));
     }
-    
-    // Add children in reverse order
-    for (int i = num_children - 1; i >= 0; i--) add_child_to_ast_node(node, children[i]);
-    
-    handle_special_cases(rule, node);
-    
+    printf("\n");
+
+    // Pop symbols and collect children in correct order
+    for (int i = rule.num_symbols - 1; i >= 0; i--) {
+        StackItem item = pop(&parser->stack);
+        if (item.ast_node) {
+            children[num_children++] = item.ast_node;
+            printf("  Child %d: %s\n", num_children, get_non_terminal_name(item.ast_node->type));
+        }
+    }
+
+    // Add children to the new node
+    for (int i = 0; i < num_children; i++) {
+        add_child_to_ast_node(node, children[i]);
+    }
+
+    // Special handling for NT_PROGRAM reduction
+    if (rule.lhs == NT_PROGRAM) {
+        printf("  Handling NT_PROGRAM reduction\n");
+        // Directly attach the function node to the program root
+        if (num_children > 0) {
+            ASTNode* function_node = children[0];
+            printf("  Directly attaching function to program root: %s\n", function_node->value);
+            //Check if function_node is NULL
+            if (function_node != NULL){
+                add_child_to_ast_node(parser->ast_root, function_node);
+             }
+
+        }
+        // Instead of creating a new node, use the program root
+        node = parser->ast_root;
+    }
+
     // Create new item and push
     int state = peek(&parser->stack).state;
-    StackItem new_item = {parser->goto_table[state][rule.lhs], {0}, false, rule.lhs, node};
-    
-    // Add function to program root
-    if (rule.lhs == NT_FUNCTION) add_child_to_ast_node(parser->ast_root, node);
-    
+    int next_state = parser->goto_table[state][rule.lhs];
+    printf("  GOTO state %d -> %s = %d\n", state, get_non_terminal_name(rule.lhs), next_state);
+    StackItem new_item = {next_state, {0}, false, rule.lhs, node};
+
     push(&parser->stack, new_item);
     return 0;
 }
-
 int action_accept(Parser* parser, Action action, Token current_token, int* token_index, StackItem* top_item) {
-    // Add remaining functions to program root
-    for (int i = 0; i <= parser->stack.top; i++) {
-        if (!parser->stack.items[i].is_terminal && parser->stack.items[i].nt == NT_FUNCTION && parser->stack.items[i].ast_node) {
-            add_child_to_ast_node(parser->ast_root, parser->stack.items[i].ast_node);
-        }
-    }
+    printf("Action Accept called, but doing nothing\n");
     return 1;
 }
 int action_error(Parser* parser, Action action, Token current_token, int* token_index, StackItem* top_item) {
@@ -1461,170 +1273,11 @@ int action_error(Parser* parser, Action action, Token current_token, int* token_
 
 
 // Statement handlers
-void handle_type_stmt(Parser* parser, ASTNode* body, int* j, int* stmt_start) {
-    ASTNode* var_decl = create_ast_node(NT_VARIABLE_DECLARATION, "VarDecl");
-    add_child_to_ast_node(var_decl, create_ast_node(NT_TYPE, parser->tokens[*stmt_start].value));
-    add_child_to_ast_node(var_decl, create_ast_node(NT_IDENTIFIER, parser->tokens[*stmt_start+1].value));
-    
-    if (*stmt_start + 2 < *j && parser->tokens[*stmt_start+2].type == EQUAL_TOKEN)
-        add_child_to_ast_node(var_decl, create_ast_node(NT_EXPRESSION, "Initializer"));
-    
-    add_child_to_ast_node(body, var_decl);
-}
-void handle_if_stmt(Parser* parser, ASTNode* body, int* j, int* stmt_start) {
-    ASTNode* if_stmt = create_ast_node(NT_IF_STATEMENT, "If");
-    add_child_to_ast_node(if_stmt, create_ast_node(NT_EXPRESSION, "Condition"));
-    add_child_to_ast_node(body, if_stmt);
-}
-void handle_loop_stmt(Parser* parser, ASTNode* body, int* j, int* stmt_start) {
-    ASTNode* loop_stmt = create_ast_node(NT_LOOP_STATEMENT, "Loop");
-    add_child_to_ast_node(loop_stmt, create_ast_node(NT_EXPRESSION, "Condition"));
-    add_child_to_ast_node(body, loop_stmt);
-}
-void handle_return_stmt(Parser* parser, ASTNode* body, int* j, int* stmt_start) {
-    ASTNode* return_stmt = create_ast_node(NT_RETURN_STATEMENT, "Return");
-    if (*stmt_start + 1 < *j) add_child_to_ast_node(return_stmt, create_ast_node(NT_EXPRESSION, "ReturnValue"));
-    add_child_to_ast_node(body, return_stmt);
-}
-void handle_identifier_stmt(Parser* parser, ASTNode* body, int* j, int* stmt_start) {
-    if (*stmt_start + 1 < *j && parser->tokens[*stmt_start+1].type == EQUAL_TOKEN) {
-        // Assignment
-        ASTNode* assign = create_ast_node(NT_ASSIGNMENT, "Assignment");
-        add_child_to_ast_node(assign, create_ast_node(NT_IDENTIFIER, parser->tokens[*stmt_start].value));
-        add_child_to_ast_node(assign, create_ast_node(NT_EXPRESSION, "Value"));
-        add_child_to_ast_node(body, assign);
-    } else if (*stmt_start + 1 < *j && parser->tokens[*stmt_start+1].type == SEPARATOR_TOKEN && 
-               strcmp(parser->tokens[*stmt_start+1].value, "(") == 0) {
-        // Function call
-        ASTNode* func_call = create_ast_node(NT_FUNCTION_CALL, "FunctionCall");
-        add_child_to_ast_node(func_call, create_ast_node(NT_IDENTIFIER, parser->tokens[*stmt_start].value));
-        add_child_to_ast_node(func_call, create_ast_node(NT_ARGUMENTS, "Arguments"));
-        add_child_to_ast_node(body, func_call);
-    } else {
-        // Generic statement
-        char debug_value[100];
-        snprintf(debug_value, 100, "Statement [%s]", parser->tokens[*stmt_start].value);
-        add_child_to_ast_node(body, create_ast_node(NT_STATEMENT, debug_value));
-    }
-}
-void handle_default_stmt(Parser* parser, ASTNode* body, int* j, int* stmt_start) {
-    if (parser->tokens[*stmt_start].type == SEPARATOR_TOKEN && strcmp(parser->tokens[*stmt_start].value, ";") == 0) return;
-    
-    char debug_value[100] = "Statement";
-    if (parser->tokens[*stmt_start].type != END_OF_TOKENS)
-        snprintf(debug_value, 100, "Statement [%s]", parser->tokens[*stmt_start].value);
-    
-    add_child_to_ast_node(body, create_ast_node(NT_STATEMENT, debug_value));
-}
+
 // Process statement based on token type
-void process_statement(Parser* parser, ASTNode* body, int* j, int* stmt_start) {
-    TokenType type = parser->tokens[*stmt_start].type;
-    
-    if (type == KEYWORD_TOKEN) {
-        char* keyword = parser->tokens[*stmt_start].value;
-        if (strcmp(keyword, "if") == 0) handle_if_stmt(parser, body, j, stmt_start);
-        else if (strcmp(keyword, "luloop") == 0) handle_loop_stmt(parser, body, j, stmt_start);
-        else if (strcmp(keyword, "return") == 0) handle_return_stmt(parser, body, j, stmt_start);
-        else handle_default_stmt(parser, body, j, stmt_start);
-        return;
-    }
-    
-    switch (type) {
-        case TYPE_TOKEN: handle_type_stmt(parser, body, j, stmt_start); break;
-        case IDENTIFIER_TOKEN: handle_identifier_stmt(parser, body, j, stmt_start); break;
-        default: handle_default_stmt(parser, body, j, stmt_start); break;
-    }
-}
+
 // Helper to parse a statement
-int parse_statement(Parser* parser, int j, ASTNode* body, int brace_count) {
-    int stmt_start = j;
-    
-    // Find statement end
-    while (j < 1000 && parser->tokens[j].type != END_OF_TOKENS && brace_count > 0 && 
-          !(parser->tokens[j].type == SEPARATOR_TOKEN && strcmp(parser->tokens[j].value, ";") == 0)) {
-        
-        if (parser->tokens[j].type == SEPARATOR_TOKEN) {
-            if (strcmp(parser->tokens[j].value, "{") == 0) brace_count++;
-            else if (strcmp(parser->tokens[j].value, "}") == 0) {
-                brace_count--;
-                if (brace_count == 0) break;
-            }
-        }
-        j++;
-    }
-    
-    // Process the statement
-    process_statement(parser, body, &j, &stmt_start);
-    
-    // Skip semicolon
-    if (j < 1000 && parser->tokens[j].type != END_OF_TOKENS && 
-        parser->tokens[j].type == SEPARATOR_TOKEN && strcmp(parser->tokens[j].value, ";") == 0) {
-        j++;
-    }
-    
-    return j;
-}
-// Helper to parse parameters
-int parse_parameters(Parser* parser, int j, ASTNode* function) {
-    ASTNode* params = create_ast_node(NT_PARAMETERS, "Parameters");
-    
-    // Add parameters until closing parenthesis
-    while (parser->tokens[j].type != SEPARATOR_TOKEN || strcmp(parser->tokens[j].value, ")") != 0) {
-        if (parser->tokens[j].type == TYPE_TOKEN && parser->tokens[j+1].type == IDENTIFIER_TOKEN) {
-            ASTNode* param = create_ast_node(NT_PARAMETER, "Parameter");
-            add_child_to_ast_node(param, create_ast_node(NT_TYPE, parser->tokens[j].value));
-            add_child_to_ast_node(param, create_ast_node(NT_IDENTIFIER, parser->tokens[j+1].value));
-            add_child_to_ast_node(params, param);
-            j += 2;
-        } else {
-            j++;
-        }
-    }
-    
-    add_child_to_ast_node(function, params);
-    
-    // Skip to opening brace
-    while (parser->tokens[j].type != SEPARATOR_TOKEN || strcmp(parser->tokens[j].value, "{") != 0) j++;
-    
-    return j;
-}
-// Helper to parse function body
-int parse_function_body(Parser* parser, int j, ASTNode* function) {
-    ASTNode* body = create_ast_node(NT_STATEMENTS, "Statements");
-    int brace_count = 1;
-    j++; // Skip opening brace
-    
-    while (brace_count > 0 && parser->tokens[j].type != END_OF_TOKENS) {
-        // Track braces
-        if (parser->tokens[j].type == SEPARATOR_TOKEN) {
-            if (strcmp(parser->tokens[j].value, "{") == 0) brace_count++;
-            else if (strcmp(parser->tokens[j].value, "}") == 0) brace_count--;
-            
-            if (brace_count == 0) break;
-            if (strcmp(parser->tokens[j].value, ";") == 0) { j++; continue; }
-        }
-        
-        if (brace_count > 0) {
-            j = parse_statement(parser, j, body, brace_count);
-        } else {
-            j++;
-        }
-    }
-    
-    add_child_to_ast_node(function, body);
-    return j;
-}
-// Helper to parse a function definition
-int parse_function(Parser* parser, int i) {
-    ASTNode* function = create_ast_node(NT_FUNCTION, parser->tokens[i+1].value);
-    add_child_to_ast_node(function, create_ast_node(NT_TYPE, parser->tokens[i].value));
-    
-    int j = parse_parameters(parser, i+3, function); // Parse parameters, starting after '('
-    j = parse_function_body(parser, j, function);    // Parse function body
-    
-    add_child_to_ast_node(parser->ast_root, function);
-    return j;
-}
+
 // Ultra-short parse function using function pointers
 void parse(Parser* parser) {
     // Initialize action handlers
