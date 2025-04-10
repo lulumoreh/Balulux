@@ -1,1 +1,30 @@
-lulog("hello world");
+int powerfour(int x)
+{
+    return x*x;
+}
+void main()
+{
+    int x = 5;
+    int a = 0;
+    int i = 0;
+    array nums[10] = {1,2,3}
+    nums[0] = 42;
+
+    if (x > 3 and x < 10) {
+        lulog("x is between 3 and 10");
+    } 
+    else {
+        lulog("x is not in range");
+    }
+    luloop (x > 0) {
+        lulog("counting down");
+        x = x - 1;
+    }
+    luloop(i < 3)
+    {
+        a = powerfour(i);
+        lulog(a);
+        i = i + 1;
+    }
+}
+

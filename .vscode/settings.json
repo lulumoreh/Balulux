@@ -1,5 +1,9 @@
 {
     "files.associations": {
-        "lexerf.h": "c"
+        "lexerf.h": "c",
+        "stdio.h": "c",
+        "stdlib.h": "c",
+        "parser.h": "c",
+        "type_traits": "c"
     }
 }
