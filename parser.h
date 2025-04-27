@@ -151,29 +151,8 @@ int action_error(Parser* parser, Action action, Token current_token, int* token_
 
 void free_lexeme_actions(Parser* parser);
 
-// Add to parser.h
-typedef int (*pFun)(Parser*, Action, Token, int*, StackItem*);
-typedef void (*TokenHandler)(Parser*, ASTNode*, int*, int*);
-// Function prototypes for action handlers
-int action_shift(Parser*, Action, Token, int*, StackItem*);
-int action_reduce(Parser*, Action, Token, int*, StackItem*);
-int action_accept(Parser*, Action, Token, int*, StackItem*);
-int action_error(Parser*, Action, Token, int*, StackItem*);
-// Function prototypes for statement handlers
-void handle_type_stmt(Parser*, ASTNode*, int*, int*);
-void handle_if_stmt(Parser*, ASTNode*, int*, int*);
-void handle_loop_stmt(Parser*, ASTNode*, int*, int*);
-void handle_return_stmt(Parser*, ASTNode*, int*, int*);
-void handle_identifier_stmt(Parser*, ASTNode*, int*, int*);
-void handle_default_stmt(Parser*, ASTNode*, int*, int*);
-void process_statement(Parser*, ASTNode*, int*, int*);
-// Function prototypes for parsing helpers
-int parse_function(Parser*, int);
-int parse_parameters(Parser*, int, ASTNode*);
-int parse_function_body(Parser*, int, ASTNode*);
-int parse_statement(Parser*, int, ASTNode*, int);
-void print_ast(ASTNode*, int);
-void free_ast(ASTNode* node);
-void build_ast_from_tokens(Parser* parser);
+typedef int (*pFun)(Parser* ,Action ,Token , int*, StackItem * );
+
+void handle_special_cases(Rule rule, ASTNode* node);
 
 #endif // PARSER_H

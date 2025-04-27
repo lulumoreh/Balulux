@@ -1,6 +1,5 @@
 #include "parser.h"
 
-// In main.c
 int main() {
     // Step 1: Open the file and read it for tokenization
     FILE *file = fopen("test.lx", "r");
@@ -8,27 +7,28 @@ int main() {
         printf("File not found!\n");
         return 1;
     }
-
+    
     // Step 2: Run the lexical analyzer to get tokens
     int flag = 0;
     Token* tokens = lexer(file, &flag);
     fclose(file);
+
+    // Print tokens for debugging (optional)
+    for (int i = 0; tokens[i].type != END_OF_TOKENS; i++) {
+        print_token(tokens[i]);
+    }
 
     // If lexer returned an error flag, terminate early
     if (flag) return 0;
 
     // Step 3: Create and initialize the parser
     Parser *parser = create_parser(tokens);
-
+    
     // Step 4: Parse the input and generate the AST
     parse(parser);
 
-    if (parser->has_error) {
-        printf("Parsing error: %s\n", parser->error_message);
-    } else if (parser->ast_root) {
+    if (parser->ast_root) {
         printf("AST created successfully.\n");
-        printf("Program node has %d children\n", parser->ast_root->num_children);
-        print_ast(parser->ast_root, 0);
     } else {
         printf("No AST was generated.\n");
     }
@@ -36,7 +36,7 @@ int main() {
     // Step 6: Clean up the parser and tokens
     free_parser(parser);
     free_tokens(tokens);  // Free the tokens array
-
+    
     return 0;
 }
 

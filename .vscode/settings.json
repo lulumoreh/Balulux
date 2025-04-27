@@ -4,6 +4,8 @@
         "stdio.h": "c",
         "stdlib.h": "c",
         "parser.h": "c",
-        "type_traits": "c"
+        "type_traits": "c",
+        "semantic.h": "c",
+        "symtab.h": "c"
     }
 }

@@ -133,6 +133,7 @@ void initialize_transition_matrix()
     transition_matrix[SEPARATOR]['\n'] = ACCEPT;
     transition_matrix[SEPARATOR]['\t'] = ACCEPT;
     transition_matrix[SEPARATOR]['"'] = ACCEPT;
+    transition_matrix[SEPARATOR]['\0'] = ACCEPT;
     // Allow separators after separators (for cases like empty brackets)
     for (int i = 0; i < 8; i++) 
     {
@@ -564,7 +565,7 @@ void initialize_transition_matrix()
     transition_matrix[RETURN_N][';'] = ACCEPT;
 
     for (int i = 'a'; i <= 'z'; i++) {
-        if (i != 'r') { //  Skip 'r' which is handled by RETURN_R
+        if (i != 'e') { //  Skip 'r' which is handled by RETURN_R
             transition_matrix[RETURN_R][i] = IDENTIFIER;
         }
         transition_matrix[RETURN_N][i] = IDENTIFIER;
@@ -841,6 +842,17 @@ Token *lexer(FILE *file, int* flag)
         
         arActions[next_state](buffer, &buffer_index, tokens, &token_index, &line_number, 
             &current_state, &next_state, &current_char, &current_index, flag);
+    }
+    if (buffer_index > 0 && current_state != START) {
+        // Manually handle acceptance of the final token
+        buffer[buffer_index] = '\0';
+        Token token;
+        token.line_num = line_number;
+        token.value = strdup(buffer);
+        token.type = getType(current_state);
+        
+        tokens[token_index] = token;
+        token_index++;
     }
 
     tokens[token_index].type = END_OF_TOKENS;
