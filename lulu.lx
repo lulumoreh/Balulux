@@ -1,0 +1,12 @@
+void main()
+{
+    int a = luload();
+    if(a > 5)
+    {
+        lulog(a);
+    }
+    else
+    {
+        lulog(5);
+    }
+}

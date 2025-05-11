@@ -1,5 +1,0 @@
-int powerfour(int x)
-{
-    y = x * x;
-    return y;
-}

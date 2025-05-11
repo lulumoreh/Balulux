@@ -1,0 +1,22 @@
+void main()
+{
+    // Basic test with a fibonacci sequence
+    int a = 1;
+    int b = 1;
+    int temp = 0;
+    
+    // Print first two Fibonacci numbers
+    lulog(a);
+    lulog(b);
+    
+    // Generate the next count Fibonacci numbers (up to 10 total)
+    int count = luload();
+    luloop(count > 0)
+    {
+        temp = a + b;
+        lulog(temp);
+        a = b;
+        b = temp;
+        count = count - 1;
+    }
+}

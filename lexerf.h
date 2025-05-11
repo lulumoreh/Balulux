@@ -19,6 +19,7 @@ typedef enum {
     SEPARATOR,
     OPERATOR,
     EQUAL,
+    NOT_EQUAL, // New state for the '!' operator
     // Existing type keywords
     INT_I, 
     INT_N,
@@ -115,10 +116,13 @@ typedef struct {
 
 // Global Variables
 #define UNTIL_BREAK 1
-#define STATES_NUM 74  // Increased to accommodate new states
+#define STATES_NUM 92  // Updated to match the total number of states including NOT_EQUAL
 #define ASCI_CHARS 256
 extern State transition_matrix[STATES_NUM][ASCI_CHARS];
 extern int line_number;
+
+// Function prototype for action handlers
+typedef void (*pFunLexer)(char*, int*, Token*, int*, int*, State*, State*, char*, int*, int*);
 
 // Function Prototypes
 void initialize_transition_matrix();
@@ -127,8 +131,12 @@ void print_token(Token token);
 void free_tokens(Token *tokens);
 TokenType getType(State state);
 
+// Action handlers
+void accept(char *buffer, int *buffer_index, Token *tokens, int *token_index, 
+    int *line_number, State *current_state, State *next_state, char *current_char, int *current_index, int *flag);
+void error(char *buffer, int *buffer_index, Token *tokens, int *token_index, 
+    int *line_number, State *current_state, State *next_state, char *current_char, int *current_index, int *flag);
+void continueForAccept(char *buffer, int *buffer_index, Token *tokens, int *token_index, 
+    int *line_number, State *current_state, State *next_state, char *current_char, int *current_index, int *flag);
 
-typedef void (*pFunLexer)(char*, int*, Token*, int*, int*, State*, State*, char*, int*, int*);
-
-
-#endif
+#endif // LEXERF_H
