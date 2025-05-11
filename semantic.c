@@ -83,7 +83,11 @@ void report_semantic_error(SemanticContext *context, SemanticErrorType error,
             break;
     }
     
-    fprintf(stderr, "Semantic error [%s] at line %d: %s\n", error_type_str, line, message);
+    fprintf(stderr, "FATAL: Semantic error [%s] at line %d: %s\n", error_type_str, line, message);
+    fprintf(stderr, "       Please fix the semantic errors before continuing.\n");
+    
+    // Immediately exit on semantic error
+    exit(1);
     context->error_count++;
     
     // Store the error message if it's the first one

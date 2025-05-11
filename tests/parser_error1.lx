@@ -1,0 +1,6 @@
+void main()
+{
+    int a = 5;
+    lulog(a)  // Missing semicolon here!
+    int b = 10;
+}

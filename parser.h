@@ -42,7 +42,11 @@ typedef struct ASTNode {
 typedef struct {
     Token* tokens;
     int pos;
+    int token_count;  // Total number of tokens
     ASTNode* root;
+    int error_count;  // Track the number of parsing errors
+    int has_fatal_error; // Flag for fatal errors that should halt compilation
+    char error_message[256]; // Store the last error message
 } Parser;
 
 // AST management
@@ -55,5 +59,7 @@ void print_ast(ASTNode* node, int indent);
 Parser* create_parser(Token* tokens);
 void free_parser(Parser* parser);
 void parse(Parser* parser);
+void parser_report_error(Parser* parser, const char* message, int is_fatal);
+int parser_has_errors(Parser* parser);
 
 #endif // PARSER_H

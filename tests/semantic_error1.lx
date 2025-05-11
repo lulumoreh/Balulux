@@ -1,6 +1,10 @@
 void main()
 {
     int a = luload();
+    
+    // Semantic error: Using undeclared variable
+    int b = c + 5;
+    
     if(a > 5)
     {
         lulog(a);

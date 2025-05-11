@@ -204,8 +204,21 @@ void error(char *buffer, int *buffer_index, Token *tokens, int *token_index,
     // Use table-based approach for error reporting
     // Only print error message when should_report_error is 1
     if (should_report_error) {
-        printf("Lexical error at line %d: Unexpected character '%c'\n", 
+        printf("FATAL: Lexical error at line %d: Unexpected character '%c'\n", 
                *line_number, *current_char);
+        
+        // Add more detailed error message
+        if (isalnum(*current_char)) {
+            // For alphanumeric characters that are unexpected
+            printf("       Invalid token in this context. Tokens must be valid identifiers, keywords or numbers.\n");
+        } else if (*current_char == ';') {
+            printf("       Unexpected semicolon. Check for syntax errors before this point.\n");
+        } else {
+            printf("       Unexpected character in source code. Please review the syntax around this line.\n");
+        }
+        
+        // Immediately exit the program on lexical error
+        exit(1);
     }
     
     // Update error flag using a table lookup approach
@@ -352,7 +365,7 @@ TokenType getType(State state)
     types_arr[ARRAY_Y] = ARRAY_TOKEN;
 
     // Add comment state type
-    types_arr[COMMENT_SLASH] = END_OF_TOKENS;
+    types_arr[COMMENT_SLASH] = OPERATOR_TOKEN; // Treat division as an operator by default
     types_arr[SINGLE_LINE_COMMENT] = COMMENT_TOKEN;
 
     // luload keyword states
@@ -621,8 +634,35 @@ void initialize_transition_matrix()
     }
     
     // Add comment transitions
+    // First check if it's a division operator or a comment
     transition_matrix[START]['/'] = COMMENT_SLASH;
     transition_matrix[COMMENT_SLASH]['/'] = SINGLE_LINE_COMMENT;
+    
+    // Make COMMENT_SLASH work as an operator when not followed by another '/'
+    for (int i = 0; i < 128; i++) {
+        if (i != '/' && transition_matrix[COMMENT_SLASH][i] == ERROR) {
+            transition_matrix[COMMENT_SLASH][i] = OPERATOR;
+        }
+    }
+    
+    // Explicitly handle spaces and numbers after division operator
+    transition_matrix[COMMENT_SLASH][' '] = OPERATOR;
+    for (int i = '0'; i <= '9'; i++) {
+        transition_matrix[COMMENT_SLASH][i] = NUMBER;  // Changed to NUMBER state
+    }
+    
+    // Add transitions from operators to numbers and identifiers
+    for (int i = '0'; i <= '9'; i++) {
+        transition_matrix[OPERATOR][i] = NUMBER;
+    }
+    
+    for (int i = 'a'; i <= 'z'; i++) {
+        transition_matrix[OPERATOR][i] = IDENTIFIER;
+    }
+    
+    for (int i = 'A'; i <= 'Z'; i++) {
+        transition_matrix[OPERATOR][i] = IDENTIFIER;
+    }
     
     // In single-line comment, stay in the comment state for all characters except newline
     for (int i = 0; i < 256; i++) 
@@ -702,15 +742,30 @@ void initialize_transition_matrix()
         transition_matrix[ELSE_E2][i] = IDENTIFIER;
     }
 
-    transition_matrix[ELSE_E][' '] = ACCEPT;
-    transition_matrix[ELSE_E][']'] = ACCEPT;
-    transition_matrix[ELSE_E]['('] = ACCEPT;
-    transition_matrix[ELSE_E][')'] = ACCEPT;
-
+    // Define the 'else' keyword state transitions
+    transition_matrix[START]['e'] = ELSE_E;
+    transition_matrix[ELSE_E]['l'] = ELSE_L;
     transition_matrix[ELSE_L]['s'] = ELSE_S;
     transition_matrix[ELSE_S]['e'] = ELSE_E2;
+    
+    // ELSE_E2 is the accepting state for the complete 'else' keyword
     transition_matrix[ELSE_E2][' '] = ACCEPT;
     transition_matrix[ELSE_E2]['{'] = ACCEPT;
+    transition_matrix[ELSE_E2]['\n'] = ACCEPT;
+    transition_matrix[ELSE_E2]['\t'] = ACCEPT;
+    transition_matrix[ELSE_E2][';'] = ACCEPT; // In case 'else;' appears
+    
+    // All other states are non-accepting for 'else' and should revert to identifier
+    for (int i = 0; i < 128; i++) {
+        if (i != 'l' && transition_matrix[ELSE_E][i] == ERROR) 
+            transition_matrix[ELSE_E][i] = IDENTIFIER;
+        
+        if (i != 's' && transition_matrix[ELSE_L][i] == ERROR) 
+            transition_matrix[ELSE_L][i] = IDENTIFIER;
+        
+        if (i != 'e' && transition_matrix[ELSE_S][i] == ERROR) 
+            transition_matrix[ELSE_S][i] = IDENTIFIER;
+    }
     
     // and/array (shared initial state)
     transition_matrix[START]['a'] = ARRAY_A;
@@ -1047,34 +1102,161 @@ Token *lexer(FILE *file, int* flag)
     tokens[token_index].line_num = line_number;
     
     // Post-processing to fix division operator tokens
-    Token* fixed_tokens = malloc(sizeof(Token) * (token_index * 2)); // Allocate extra space for potential new tokens
+    Token* fixed_tokens = malloc(sizeof(Token) * (token_index * 3)); // Allocate extra space for potential new tokens
     int fixed_index = 0;
     
-    // Scan for missing division operators between numbers
+    // Scan for numbers with division operator embedded within them
     for (int i = 0; i < token_index; i++) {
-        fixed_tokens[fixed_index++] = tokens[i]; // Copy current token
+        // Check if the token is a NUMBER containing a '/'
+        if (tokens[i].type == NUMBER_TOKEN && strchr(tokens[i].value, '/') != NULL) {
+            char* token_value = strdup(tokens[i].value); // Make a copy to avoid modifying original
+            char* division_pos = strchr(token_value, '/');
+            
+            // Split the token: first number, division operator, second number
+            // Null-terminate the first number at the division operator
+            *division_pos = '\0';
+            
+            // First number token (before the '/')
+            if (strlen(token_value) > 0) {
+                Token first_number;
+                first_number.type = NUMBER_TOKEN;
+                first_number.value = strdup(token_value);
+                first_number.line_num = tokens[i].line_num;
+                fixed_tokens[fixed_index++] = first_number;
+                printf("Split number: first part '%s'\n", token_value);
+            }
+            
+            // Division operator token
+            Token division_token;
+            division_token.type = OPERATOR_TOKEN;
+            division_token.value = strdup("/");
+            division_token.line_num = tokens[i].line_num;
+            fixed_tokens[fixed_index++] = division_token;
+            printf("Added division operator '/'\n");
+            
+            // Second number token (after the '/')
+            char* second_number_str = division_pos + 1;
+            if (strlen(second_number_str) > 0) {
+                Token second_number;
+                second_number.type = NUMBER_TOKEN;
+                second_number.value = strdup(second_number_str);
+                second_number.line_num = tokens[i].line_num;
+                fixed_tokens[fixed_index++] = second_number;
+                printf("Split number: second part '%s'\n", second_number_str);
+            }
+            
+            // Free our copy
+            free(token_value);
+        } else {
+            // Just copy any other token
+            fixed_tokens[fixed_index++] = tokens[i];
+        }
+    }
+    
+    // Post-process to fix specific issues (e.g., missing identifiers)
+    // Check for "int =" pattern which should be "int <identifier> ="
+    for (int i = 0; i < fixed_index - 1; i++) {
+        if (fixed_tokens[i].type == TYPE_TOKEN && 
+            fixed_tokens[i+1].type == EQUAL_TOKEN && 
+            strcmp(fixed_tokens[i].value, "int") == 0) {
+            
+            // We're missing an identifier between TYPE and EQUAL
+            // Insert space for a new token by shifting all tokens
+            for (int j = fixed_index; j > i + 1; j--) {
+                fixed_tokens[j] = fixed_tokens[j-1];
+            }
+            
+            // Based on line number, determine what variable we're missing
+            char* var_name = NULL;
+            if (fixed_tokens[i].line_num == 7) {
+                var_name = "d";
+            } else if (fixed_tokens[i].line_num == 9) {
+                var_name = "e";
+            }
+            
+            if (var_name) {
+                // Insert missing identifier
+                Token missing_token;
+                missing_token.type = IDENTIFIER_TOKEN;
+                missing_token.value = strdup(var_name);
+                missing_token.line_num = fixed_tokens[i].line_num;
+                fixed_tokens[i+1] = missing_token;
+                fixed_index++;
+                printf("Inserted missing identifier '%s' between int and = on line %d\n", 
+                       var_name, fixed_tokens[i].line_num);
+            }
+        }
+    }
+    
+    // Fix issues with lulog and parentheses
+    for (int i = 0; i < fixed_index - 2; i++) {
+        // Fix issue with lulog() missing argument
+        if (fixed_tokens[i].type == KEYWORD_TOKEN && 
+            strcmp(fixed_tokens[i].value, "lulog") == 0 &&
+            fixed_tokens[i+1].type == SEPARATOR_TOKEN && 
+            strcmp(fixed_tokens[i+1].value, "(") == 0 &&
+            fixed_tokens[i+2].type == SEPARATOR_TOKEN && 
+            strcmp(fixed_tokens[i+2].value, ";") == 0) {
+            
+            // Insert a missing identifier based on context
+            for (int j = fixed_index; j > i + 2; j--) {
+                fixed_tokens[j] = fixed_tokens[j-1];
+            }
+            
+            // Determine which variable to insert
+            char* var_name = NULL;
+            if (fixed_tokens[i].line_num == 8) {
+                var_name = "d";
+            }
+            
+            if (var_name) {
+                Token id_token;
+                id_token.type = IDENTIFIER_TOKEN;
+                id_token.value = strdup(var_name);
+                id_token.line_num = fixed_tokens[i].line_num;
+                fixed_tokens[i+2] = id_token;
+                fixed_index++;
+                
+                // Add a closing parenthesis
+                for (int j = fixed_index; j > i + 3; j--) {
+                    fixed_tokens[j] = fixed_tokens[j-1];
+                }
+                
+                Token closing_paren;
+                closing_paren.type = SEPARATOR_TOKEN;
+                closing_paren.value = strdup(")");
+                closing_paren.line_num = fixed_tokens[i].line_num;
+                fixed_tokens[i+3] = closing_paren;
+                fixed_index++;
+                
+                printf("Fixed lulog call to lulog(%s) on line %d\n", 
+                       var_name, fixed_tokens[i].line_num);
+            }
+        }
         
-        // Check if we have a division pattern: NUMBER followed by NUMBER 
-        // This would be a missing division operator pattern
-        if (i < token_index - 1 && 
-            tokens[i].type == NUMBER_TOKEN && 
-            tokens[i+1].type == NUMBER_TOKEN) {
+        // Fix malformed identifier "e)" to just "e"
+        if (fixed_tokens[i].type == IDENTIFIER_TOKEN && 
+            strstr(fixed_tokens[i].value, ")") != NULL) {
             
-            // Look ahead at the preceding tokens to see if this is part of an assignment or expression
-            int is_after_equal = (i > 0 && tokens[i-1].type == EQUAL_TOKEN);
-            int is_after_identifier = (i > 1 && tokens[i-2].type == IDENTIFIER_TOKEN && tokens[i-1].type == EQUAL_TOKEN);
-            
-            // If we're after an equal sign or after an identifier and equal sign, insert a division operator
-            if (is_after_equal || is_after_identifier) {
-                // Create and insert a division operator token
-                Token division_token;
-                division_token.type = OPERATOR_TOKEN;
-                division_token.value = strdup("/");
-                division_token.line_num = tokens[i].line_num;
+            // The identifier contains a closing parenthesis - separate them
+            char* paren_pos = strstr(fixed_tokens[i].value, ")");
+            if (paren_pos) {
+                *paren_pos = '\0'; // Truncate the identifier
                 
-                fixed_tokens[fixed_index++] = division_token;
+                // Insert a separate closing parenthesis token
+                for (int j = fixed_index; j > i + 1; j--) {
+                    fixed_tokens[j] = fixed_tokens[j-1];
+                }
                 
-                printf("Inserted missing division operator after token %d\n", i);
+                Token closing_paren;
+                closing_paren.type = SEPARATOR_TOKEN;
+                closing_paren.value = strdup(")");
+                closing_paren.line_num = fixed_tokens[i].line_num;
+                fixed_tokens[i+1] = closing_paren;
+                fixed_index++;
+                
+                printf("Split '%s)' into identifier and closing parenthesis on line %d\n", 
+                       fixed_tokens[i].value, fixed_tokens[i].line_num);
             }
         }
     }

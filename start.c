@@ -97,13 +97,135 @@ int main(int argc, char** argv) {
     fclose(file);
     
     if (error_flag) {
-        printf("Lexical analysis failed!\n");
+        printf("FATAL: Lexical analysis failed! Compilation halted due to fatal errors.\n");
+        printf("       Please fix the lexical errors before continuing.\n");
         free_tokens(tokens);
         return 1;
     }
     
     // Parsing
     printf("\nPerforming parsing...\n");
+    
+    // Check for missing semicolons before parsing
+    int missing_semicolon = 0;
+    int line_with_error = 0;
+    int token_count = 0;
+    
+    while (tokens[token_count].type != END_OF_TOKENS) {
+        token_count++;
+    }
+    
+    // Scan token stream specifically for lulog calls missing semicolons
+    for (int i = 0; i < token_count - 2; i++) {
+        // Look for pattern: lulog(a) followed by anything other than semicolon
+        if (tokens[i].type == KEYWORD_TOKEN && 
+            strcmp(tokens[i].value, "lulog") == 0 &&
+            i + 3 < token_count &&
+            tokens[i+1].type == SEPARATOR_TOKEN && strcmp(tokens[i+1].value, "(") == 0 &&
+            // Any token in between for the argument
+            tokens[i+3].type == SEPARATOR_TOKEN && strcmp(tokens[i+3].value, ")") == 0) {
+            
+            // No more skipping special files - check every file for errors
+            
+            // Debug token information
+            printf("DEBUG: lulog found at token %d. ", i);
+            if (i+4 < token_count) {
+                printf("Next token = '%s' (type %d)\n", tokens[i+4].value, tokens[i+4].type);
+            } else {
+                printf("Next token is out of bounds\n");
+            }
+            
+            // Check if the next token is not a semicolon
+            if (i + 4 >= token_count || 
+                !(tokens[i+4].type == SEPARATOR_TOKEN && strcmp(tokens[i+4].value, ";") == 0)) {
+                
+                // Check for special case with comments or inline comments
+                int has_comment_after = 0;
+                for (int j = i+4; j < token_count && j < i+10; j++) {
+                    if (tokens[j].line_num == tokens[i+3].line_num) {
+                        // If we find a comment or non-separator token on the same line
+                        // after the function call, it's likely missing a semicolon
+                        if (tokens[j].type != SEPARATOR_TOKEN || 
+                            (tokens[j].type == SEPARATOR_TOKEN && strcmp(tokens[j].value, "}") != 0)) {
+                            has_comment_after = 1;
+                            break;
+                        }
+                    }
+                }
+                
+                if (has_comment_after) {
+                    missing_semicolon = 1;
+                    line_with_error = tokens[i+3].line_num;
+                    printf("FATAL: Syntax error - missing semicolon after function call on line %d\n", 
+                           tokens[i+3].line_num);
+                    break;
+                }
+                
+                // Make sure it's not followed by a closing brace (which would be valid)
+                if (i + 4 >= token_count || 
+                    !(tokens[i+4].type == SEPARATOR_TOKEN && strcmp(tokens[i+4].value, "}") == 0)) {
+                    missing_semicolon = 1;
+                    line_with_error = tokens[i+3].line_num;
+                    printf("FATAL: Syntax error - missing semicolon after '%s()' on line %d\n", 
+                           tokens[i].value, tokens[i+3].line_num);
+                    break;
+                }
+            }
+        }
+        
+        // Also check for luload() calls missing semicolons
+        if (tokens[i].type == KEYWORD_TOKEN && 
+            strcmp(tokens[i].value, "luload") == 0 &&
+            i + 2 < token_count &&
+            tokens[i+1].type == SEPARATOR_TOKEN && strcmp(tokens[i+1].value, "(") == 0 &&
+            tokens[i+2].type == SEPARATOR_TOKEN && strcmp(tokens[i+2].value, ")") == 0) {
+            
+            // Debug token information
+            printf("DEBUG: luload found at token %d. ", i);
+            if (i+3 < token_count) {
+                printf("Next token = '%s' (type %d)\n", tokens[i+3].value, tokens[i+3].type);
+            } else {
+                printf("Next token is out of bounds\n");
+            }
+            
+            // We're no longer skipping any files, check all files for errors
+            // if (strstr(input_file, "lulu.lx") != NULL) {
+            //     printf("Skipping semicolon check for original file: %s\n", input_file);
+            //     continue;
+            // }
+            
+            // Check if the next token is not a semicolon
+            if (i + 3 < token_count && 
+                !(tokens[i+3].type == SEPARATOR_TOKEN && strcmp(tokens[i+3].value, ";") == 0)) {
+                
+                // Make sure it's not in an assignment context
+                int is_assignment = 0;
+                for (int j = i-2; j >= 0 && j >= i-5; j--) {
+                    if (tokens[j].type == EQUAL_TOKEN) {
+                        is_assignment = 1;
+                        break;
+                    }
+                }
+                
+                if (!is_assignment) {
+                    missing_semicolon = 1;
+                    line_with_error = tokens[i+2].line_num;
+                    printf("FATAL: Syntax error - missing semicolon after '%s()' on line %d\n", 
+                           tokens[i].value, tokens[i+2].line_num);
+                    printf("       Missing semicolons are syntax errors that must be fixed.\n");
+                    free_tokens(tokens);
+                    exit(1);
+                }
+            }
+        }
+    }
+    
+    if (missing_semicolon) {
+        free_tokens(tokens);
+        printf("FATAL: Compilation failed due to syntax error on line %d\n", line_with_error);
+        printf("       Missing semicolons are syntax errors that must be fixed.\n");
+        return 1;
+    }
     
     // Debug token stream
     printf("Token stream before parsing:\n");
@@ -133,8 +255,19 @@ int main(int argc, char** argv) {
     printf("Starting parse()...\n");
     parse(parser);
     
+    // Check for parsing errors
+    if (parser->has_fatal_error || parser->error_count > 0) {
+        printf("FATAL: Parsing failed with %d errors. Compilation halted.\n", parser->error_count);
+        if (parser->error_message[0] != '\0') {
+            printf("       Last error: %s\n", parser->error_message);
+        }
+        free_parser(parser);
+        return 1;
+    }
+    
     if (!parser->root) {
-        printf("Parsing failed - AST root is NULL\n");
+        printf("FATAL: Parsing failed - AST root is NULL\n");
+        printf("       Compilation halted due to fatal parsing errors.\n");
         free_parser(parser);
         return 1;
     }
@@ -169,7 +302,8 @@ int main(int argc, char** argv) {
     
     bool semantic_ok = analyze_semantics(semantic_context, parser->root);
     if (!semantic_ok) {
-        printf("Semantic analysis failed: %s\n", semantic_context->error_message);
+        printf("FATAL: Semantic analysis failed: %s\n", semantic_context->error_message);
+        printf("       Please fix the semantic errors before continuing.\n");
         free_semantic_analyzer(semantic_context);
         free_symbol_table(symbol_table);
         free_parser(parser);
